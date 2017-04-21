@@ -55,10 +55,10 @@
             TestScript = {
                 $state = [string]$(netsh interface ipv4 show winsserver) -replace '\s', ''
                 if ($state -like "*BrownNetwork?StaticallyConfiguredWINSServers:10.4.21.5*") {
-                    Write-Verbose "WINS Server is set correctly."
+                    Write-Verbose "WINS Server is compliant."
                     return $true
                 } else {
-                    Write-Verbose "WINS Server is not set."
+                    Write-Verbose "WINS Server is not compliant."
                     return $false
                 }
             }
@@ -74,18 +74,18 @@
         Script LMHOSTS {
             GetScript = {
                 try {
-                    Result = [int]$(Get-ItemPropertyValue HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters 'EnableLMHOSTS')
+                    Result = [int]$(Get-ItemPropertyValue "HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters" "EnableLMHOSTS")
                 } catch {
                     Result = -1
                 }
             }
             TestScript = {
                 try {
-                    if ([int]$(Get-ItemPropertyValue HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters 'EnableLMHOSTS') -eq 0) {
-                        Write-Verbose "LMHOSTS Lookup is disabled."
+                    if ([int]$(Get-ItemPropertyValue "HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters" "EnableLMHOSTS") -eq 0) {
+                        Write-Verbose "LMHOSTS Lookup is compliant: expected `"disabled`", found `"disabled`"."
                         return $true
                     } else {
-                        Write-Verbose "LMHOSTS Lookup is enabled."
+                        Write-Verbose "LMHOSTS Lookup is not compliant: expected `"disabled`", found `"enabled`"."
                     }
                 } catch {
                     Write-Verbose "LMHOSTS Lookup key is not found."
@@ -155,28 +155,25 @@
         # set Data Execution Prevention
         Script DEP {
             GetScript = {
-                try {
-                    Result = [int]$(Get-ItemPropertyValue "HKlm:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\NoExecuteState" "LastNoExecuteRadioButtonState")
-                } catch {
-                    Result = -1
+                @{
+                    Result = [int]$(Get-WmiObject Win32_OperatingSystem | Select-Object -ExpandProperty DataExecutionPrevention_SupportPolicy)
                 }
             }
             TestScript = {
-                try {
-                    if ([int]$(Get-ItemPropertyValue "HKlm:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\NoExecuteState" "LastNoExecuteRadioButtonState") -eq 0x000036bc) {
-                        Write-Verbose "Data Execution Prevention is set correctly."
-                        return $true
-                    } else {
-                        Write-Verbose "Data Execution Prevention is not set correctly."
-                        return $false
-                    }
-                } catch {
-                    Write-Verbose "Data Execution Prevention has not been set up."
+                $state = [int]$(Get-WmiObject Win32_OperatingSystem | Select-Object -ExpandProperty DataExecutionPrevention_SupportPolicy)
+                if ($state -eq 2) {
+                    Write-Verbose "Data Execution Prevention is compliant: expected 2, found 2."
+                    return $true
+                } else {
+                    Write-Verbose "Data Execution Prevention is not compliant: expected 2, found $state."
+                    return $false
                 }
-                return $false
             }
             SetScript = {
-                Write-Host "NYI"
+                Write-Verbose "Setting Data Execution Prevention Support Policy to 2."
+                $OSObj = $(Get-WmiObject Win32_OperatingSystem)
+                $OSObj.DataExecutionPrevention_SupportPolicy = 2
+                $OSObj.Put()
             }
         }
         
@@ -214,15 +211,16 @@
         Script ServerManagerTask {
             GetScript = {
                 return @{
-                    Result = [string]$(Get-ScheduledTask -TaskName ServerManager | Select-Object -ExpandProperty State)
+                    Result = $([string]$(Get-ScheduledTask -TaskName ServerManager | Select-Object -ExpandProperty State)).ToLower()
                 }
             }
             TestScript = {
-                if ($(Get-ScheduledTask -TaskName ServerManager | Select-Object -ExpandProperty State) -eq "Disabled") {
-                    Write-Verbose "Scheduled task for Server Manager is disabled."
+                $state = $([string]$(Get-ScheduledTask -TaskName ServerManager | Select-Object -ExpandProperty State)).ToLower()
+                if ($state -eq "disabled") {
+                    Write-Verbose "Scheduled task for Server Manager is compliant: expected `"disabled`", found `"disabled`"."
                     return $true
                 } else {
-                    Write-Verbose "Scheduled task for Server Manager is enabled."
+                    Write-Verbose "Scheduled task for Server Manager is not compliant: expected `"disabled`", found `"$state`"."
                     return $false
                 }
             }
@@ -284,10 +282,10 @@
             TestScript = {
                 $state = [string]$(netsh interface tcp show global) -replace '\s', ''
                 if ($state -like "*Receive-SideScalingState:enabled*") {
-                    Write-Verbose "Receive-Side Scaling is enabled in netsh."
+                    Write-Verbose "Receive-Side Scaling in netsh is compliant: expected `"enabled`", found `"enabled`"."
                     return $true
                 } else {
-                    Write-Verbose "Received-Side Scaling is disabled in netsh."
+                    Write-Verbose "Receive-Side Scaling in netsh is not compliant: expected `"enabled`", found `"disabled`"."
                     return $false
                 }
             }
@@ -306,10 +304,10 @@
             }
             TestScript = {
                 if (Get-NetAdapterRss -Name "BrownNetwork" | Select-Object -ExpandProperty Enabled) {
-                    Write-Verbose "Receive-Side Scaling is enabled in Device Manager."
+                    Write-Verbose "Receive-Side Scaling in Device Manager is not compliant: expected `"disabled`", found `"enabled`"."
                     return $false
                 } else {
-                    Write-Verbose "Receive-Side Scaling is disabled in Device Manager."
+                    Write-Verbose "Receive-Side Scaling in Device Manager is compliant: expected `"disabled`", found `"disabled`"."
                     return $true
                 }
             }
@@ -321,4 +319,4 @@
     }   
 }
 
-Template -ComputerName TestServer-yqin -guid ([guid]::NewGuid()) -OutputPath C:\DSC\Config
+Template -ComputerName DWIN2016DSCCIT -guid ([guid]::NewGuid()) -OutputPath C:\DSC\Config
