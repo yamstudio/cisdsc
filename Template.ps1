@@ -74,9 +74,13 @@
         Script LMHOSTS {
             GetScript = {
                 try {
-                    Result = [int]$(Get-ItemPropertyValue "HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters" "EnableLMHOSTS")
+                    return @{
+                        Result = [string]$(Get-ItemPropertyValue "HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters" "EnableLMHOSTS")
+                    }
                 } catch {
-                    Result = -1
+                    return @{
+                        Result = "-1"
+                    }
                 }
             }
             TestScript = {
@@ -155,8 +159,8 @@
         # set Data Execution Prevention
         Script DEP {
             GetScript = {
-                @{
-                    Result = [int]$(Get-WmiObject Win32_OperatingSystem | Select-Object -ExpandProperty DataExecutionPrevention_SupportPolicy)
+                return @{
+                    Result = [string]$(Get-WmiObject Win32_OperatingSystem | Select-Object -ExpandProperty DataExecutionPrevention_SupportPolicy)
                 }
             }
             TestScript = {
@@ -299,7 +303,7 @@
         Script DeviceManagerReceiveSideScaling {
             GetScript = {
                 return @{
-                    Result = $(Get-NetAdapterRss -Name "BrownNetwork" | Select-Object -ExpandProperty Enabled)
+                    Result = [string]$(Get-NetAdapterRss -Name "BrownNetwork" | Select-Object -ExpandProperty Enabled)
                 }
             }
             TestScript = {
