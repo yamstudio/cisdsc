@@ -46,4 +46,4 @@
 }
 
 $ComputerName = "TestServer-yqin"
-Generate-TestServerConfiguration -OutputPath C:\DSC\Config
+PullServerConfiguration -OutputPath "C:\DSC\Config"
