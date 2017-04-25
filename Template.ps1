@@ -239,18 +239,19 @@
         # download BGInfo
         File BGInfo {
             DestinationPath = "$env:SystemDrive\AdminFiles\BGInfo32-64"
-            Ensure = $true
+            Ensure = "Present"
             SourcePath = "\\files\dfs\CISWindows\Software\BGinfo\BGInfo32-64"
             Type = "Directory"
             Checksum = "SHA-256"
             Force = $true
             MatchSource = $true
+            Recurse = $true
         }
     
         # set BGInfo registry key
         Registry BGInfoKey {
             DependsOn = "[File]BGInfo"
-            Ensure = $true
+            Ensure = "Present"
             Key = "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
             ValueName = "BGInfo"
             ValueData = "C:\AdminFiles\BgInfo32-64\bginfo64.exe C:\AdminFiles\BgInfo32-64\config2.bgi /NOLICPROMPT /timer:0"
