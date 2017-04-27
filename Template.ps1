@@ -20,14 +20,38 @@
 
 
         # NETWORK CONFIGURATION
+        # ensure network interface BrownNetwork is present - prerequisite for DNSServer, DNSSuffix, WINSServer, DeviceManagerReceiveSideScaling
+        Script BrownNetwork {
+            GetScript = {
+                return @{
+                    Result = [string]$(Get-WmiObject Win32_NetworkAdapter | Where-Object Name -like "*Ethernet Adapter*" | Select-Object -ExpandProperty NetConnectionID)
+                }
+            }
+            TestScript = {
+                if ($(Get-WmiObject Win32_NetworkAdapter | Select-Object -ExpandProperty NetConnectionID).Contains("BrownNetwork")) {
+                    Write-Verbose "Found BrownNetwork!"
+                    return $true
+                } else {
+                    Write-Verbose "Did not find BrownNetwork!"
+                    return $false
+                }
+            }
+            SetScript = {
+                $adapters = $(Get-WmiObject Win32_NetworkAdapter | Where-Object Name -like "*Ethernet Adapter*" | Select-Object -ExpandProperty NetConnectionID)
+                if ($adapters[0] -eq $null) {
+                    Write-Error "CRITICAL: Something is wrong with network adapters - not sure if we should proceed."
+                }
+            }
+        }
+
         # set DNS addresses to two of 10.4.21.{2, 3, 4, 5}, and 10.1.1.10
         Script DNSServer {
+            DependsOn = "[Script]BrownNetwork"
             GetScript = {
                 return @{
                     Result = $(Get-DnsClientServerAddress -InterfaceAlias "BrownNetwork" -AddressFamily IPv4 | Select-Object -ExpandProperty ServerAddresses)
                 }
             }
-
             TestScript = {
                 $dns = $(Get-DnsClientServerAddress -InterfaceAlias "BrownNetwork" -AddressFamily IPv4 | Select-Object -ExpandProperty ServerAddresses)
                 if ($dns[0] -match "^10.4.21.[2-5]") {
@@ -38,12 +62,11 @@
                         }
                     }
                 }
-                Write-Verbose "DNS Server is not compliant"
+                Write-Verbose "DNS Server is not compliant."
                 return $false
             }
-
             SetScript = {
-                Write-Verbose "Setting correct DNS Server addresses"
+                Write-Verbose "Setting correct DNS Server addresses."
                 $dns1 = Get-Random -Minimum 2 -Maximum 6
                 do { 
                     $dns2 = Get-Random -Minimum 2 -Maximum 6 
@@ -55,8 +78,9 @@
         }
         
         # set DNS suffixes
-        # manipulate registry key directly, couldn't find better way
+        # manipulate registry key directly for simplicity
         Registry DNSSuffix {
+            DependsOn = "[Script]BrownNetwork"
             Key = "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
             Ensure = "Present"
             ValueName = "SearchList"
@@ -66,6 +90,7 @@
 
         # set WINS address
         Script WINSServer {
+            DependsOn = "[Script]BrownNetwork"
             GetScript = {
                 return @{
                     Result = [string]$(netsh interface ipv4 show winsserver)
@@ -330,6 +355,7 @@
 
         # disable receive-side scaling in Device Manager
         Script DeviceManagerReceiveSideScaling {
+            DependsOn = "[Script]BrownNetwork"
             GetScript = {
                 return @{
                     Result = [string]$(Get-NetAdapterRss -Name "BrownNetwork" | Select-Object -ExpandProperty Enabled)
