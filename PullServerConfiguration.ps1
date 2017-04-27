@@ -45,5 +45,5 @@
     }
 }
 
-$ComputerName = "TestServer-yqin"
+$ComputerName = "DWIN2016DSCCIT"
 PullServerConfiguration -OutputPath "C:\DSC\Config"

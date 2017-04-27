@@ -5,7 +5,7 @@
         [Parameter(Mandatory=$true)][String]$guid
     )
 
-    Import-DscResource -ModuleName PSDesiredStateConfiguration, xNetworking, xSystemSecurity, xRemoteDesktopAdmin
+    Import-DscResource -ModuleName PSDesiredStateConfiguration, xSystemSecurity, xRemoteDesktopAdmin
 
     Node $ComputerName {
 
@@ -21,19 +21,38 @@
 
         # NETWORK CONFIGURATION
         # set DNS addresses to two of 10.4.21.{2, 3, 4, 5}, and 10.1.1.10
-        $dns1 = Get-Random -Minimum 2 -Maximum 6
-        do {
-            $dns2 = Get-Random -Minimum 2 -Maximum 6
-        } while ($dns1 -eq $dns2)
-        $dns1 = "10.4.21." + [string]$dns1
-        $dns2 = "10.4.21." + [string]$dns2
-        xDNSServerAddress DNSServer {
-            Address = $dns1, $dns2, "10.1.1.10"
-            AddressFamily = "IPv4"
-            InterfaceAlias = "BrownNetwork"
-            Validate = $true
+        Script DNSServer {
+            GetScript = {
+                return @{
+                    Result = $(Get-DnsClientServerAddress -InterfaceAlias "BrownNetwork" -AddressFamily IPv4 | Select-Object -ExpandProperty ServerAddresses)
+                }
+            }
+
+            TestScript = {
+                $dns = $(Get-DnsClientServerAddress -InterfaceAlias "BrownNetwork" -AddressFamily IPv4 | Select-Object -ExpandProperty ServerAddresses)
+                if ($dns[0] -match "^10.4.21.[2-5]") {
+                    if ($dns[1] -match "^10.4.21.[2-5]") {
+                        if ($dns[2] -eq "10.1.1.10") {
+                            Write-Verbose "DNS Server is compliant."
+                            return $true
+                        }
+                    }
+                }
+                Write-Verbose "DNS Server is not compliant"
+                return $false
+            }
+
+            SetScript = {
+                Write-Verbose "Setting correct DNS Server addresses"
+                $dns1 = Get-Random -Minimum 2 -Maximum 6
+                do { 
+                    $dns2 = Get-Random -Minimum 2 -Maximum 6 
+                } while ($dns1 -eq $dns2) 
+                $dns1 = "10.4.21." + [string]$dns1
+                $dns2 = "10.4.21." + [string]$dns2
+                Set-DnsClientServerAddress -InterfaceAlias "BrownNetwork" -Addresses $dns1, $dns2, "10.1.1.10"
+            }
         }
-        Remove-Variable dns1, dns2
         
         # set DNS suffixes
         # manipulate registry key directly, couldn't find better way
@@ -41,7 +60,7 @@
             Key = "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
             Ensure = "Present"
             ValueName = "SearchList"
-            ValueData = "ad.brown.edu, brown.edu, qad.brown.edu, services.brown.edu"
+            ValueData = "ad.brown.edu,brown.edu,qad.brown.edu,services.brown.edu"
             ValueType = "String"
         }
 
@@ -197,7 +216,7 @@
         # enable remote access
         xRemoteDesktopAdmin RemoteDesktop {
             Ensure = "Present"
-            UserAuthentication = "NonSecure"
+            UserAuthentication = "Secure"
         }
 
 
@@ -240,7 +259,7 @@
         File BGInfo {
             DestinationPath = "$env:SystemDrive\AdminFiles\BGInfo32-64"
             Ensure = "Present"
-            SourcePath = "\\files\dfs\CISWindows\Software\BGinfo\BGInfo32-64"
+            SourcePath = "C:\Adminfiles\BGInfo32-64"#"\\files\dfs\CISWindows\Software\BGinfo\BGInfo32-64"
             Type = "Directory"
             Checksum = "SHA-256"
             Force = $true
@@ -264,14 +283,6 @@
         WindowsFeature SMB1 {
             Name = "FS-SMB1"
             Ensure = "Absent"
-        }
-
-        # disable smb1 registry key (just to make sure)
-        Registry SMB1Registry {
-            Key = "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters"
-            ValueName = "SMB1"
-            ValueData = "0"
-            ValueType = "Dword"
         }
 
 
