@@ -2,7 +2,8 @@
 
     param(
         [Parameter(Mandatory=$true)][String[]]$ComputerName,
-        [Parameter(Mandatory=$true)][String]$guid
+        [Parameter(Mandatory=$true)][String]$guid,
+        [boolean]$SkipBrownNetworkSettings = $false
     )
 
     Import-DscResource -ModuleName PSDesiredStateConfiguration, xSystemSecurity, xRemoteDesktopAdmin
@@ -20,7 +21,7 @@
 
 
         # NETWORK CONFIGURATION
-        # ensure network interface BrownNetwork is present - prerequisite for DNSServer, DNSSuffix, WINSServer, DeviceManagerReceiveSideScaling
+        # ensure network interface BrownNetwork is present - prerequisite for DNSServer, WINSServer, DeviceManagerReceiveSideScaling
         Script BrownNetwork {
             GetScript = {
                 return @{
@@ -29,17 +30,18 @@
             }
             TestScript = {
                 if ($(Get-WmiObject Win32_NetworkAdapter | Select-Object -ExpandProperty NetConnectionID).Contains("BrownNetwork")) {
-                    Write-Verbose "Found BrownNetwork!"
+                    Write-Verbose "BrownNetwork found!"
                     return $true
                 } else {
-                    Write-Verbose "Did not find BrownNetwork!"
+                    Write-Verbose "BrownNetwork not found!"
                     return $false
                 }
             }
             SetScript = {
                 $adapters = $(Get-WmiObject Win32_NetworkAdapter | Where-Object Name -like "*Ethernet Adapter*" | Select-Object -ExpandProperty NetConnectionID)
-                if ($adapters[0] -eq $null) {
+                if ($adapters.length -ne 1) {
                     Write-Error "CRITICAL: Something is wrong with network adapters - not sure if we should proceed."
+                    $SkipBrownNetworkSettings = $true
                 }
             }
         }
@@ -53,6 +55,10 @@
                 }
             }
             TestScript = {
+                if ($SkipBrownNetworkSettings) {
+                    Write-Error "CRITICAL: BrownNetwork not found - cowardly skipping configuration."
+                    return $true
+                }
                 $dns = $(Get-DnsClientServerAddress -InterfaceAlias "BrownNetwork" -AddressFamily IPv4 | Select-Object -ExpandProperty ServerAddresses)
                 if ($dns[0] -match "^10.4.21.[2-5]") {
                     if ($dns[1] -match "^10.4.21.[2-5]") {
@@ -80,7 +86,6 @@
         # set DNS suffixes
         # manipulate registry key directly for simplicity
         Registry DNSSuffix {
-            DependsOn = "[Script]BrownNetwork"
             Key = "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
             Ensure = "Present"
             ValueName = "SearchList"
@@ -97,6 +102,10 @@
                 }
             }
             TestScript = {
+                if ($SkipBrownNetworkSettings) {
+                    Write-Error "CRITICAL: BrownNetwork not found - cowardly skipping configuration."
+                    return $true
+                }
                 $state = [string]$(netsh interface ipv4 show winsserver) -replace '\s', ''
                 if ($state -like "*BrownNetwork?StaticallyConfiguredWINSServers:10.4.21.5*") {
                     Write-Verbose "WINS Server is compliant."
@@ -362,6 +371,10 @@
                 }
             }
             TestScript = {
+                if ($SkipBrownNetworkSettings) {
+                    Write-Error "CRITICAL: BrownNetwork not found - cowardly skipping configuration."
+                    return $true
+                }
                 if (Get-NetAdapterRss -Name "BrownNetwork" | Select-Object -ExpandProperty Enabled) {
                     Write-Verbose "Receive-Side Scaling in Device Manager is not compliant: expected `"disabled`", found `"enabled`"."
                     return $false
