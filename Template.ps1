@@ -34,14 +34,18 @@
                     return $true
                 } else {
                     Write-Verbose "BrownNetwork not found!"
+                    $SkipBrownNetworkSettings = $true
                     return $false
                 }
             }
             SetScript = {
-                $adapters = $(Get-WmiObject Win32_NetworkAdapter | Where-Object Name -like "*Ethernet Adapter*" | Select-Object -ExpandProperty NetConnectionID)
-                if ($adapters.length -ne 1) {
-                    Write-Error "CRITICAL: Something is wrong with network adapters - not sure if we should proceed."
-                    $SkipBrownNetworkSettings = $true
+                $adapter = $(Get-WmiObject Win32_NetworkAdapter | Where-Object Name -like "*Ethernet Adapter*")
+                if (($adapter -eq $null) -or ($adapter[1] -ne $null)) {
+                    Write-Error "CRITICAL: Something is wrong with network adapters - not sure if we should proceed."                 
+                } else {
+                    $adapter.NetConnectionID = "BrownNetwork"
+                    $adapter.Put()
+                    $SkipBrownNetworkSettings = $false
                 }
             }
         }
@@ -50,6 +54,11 @@
         Script DNSServer {
             DependsOn = "[Script]BrownNetwork"
             GetScript = {
+                if ($SkipBrownNetworkSettings) {
+                    return @{
+                        Result = $null
+                    }
+                }
                 return @{
                     Result = $(Get-DnsClientServerAddress -InterfaceAlias "BrownNetwork" -AddressFamily IPv4 | Select-Object -ExpandProperty ServerAddresses)
                 }
@@ -97,6 +106,11 @@
         Script WINSServer {
             DependsOn = "[Script]BrownNetwork"
             GetScript = {
+                if ($SkipBrownNetworkSettings) {
+                    return @{
+                        Result = $null
+                    }
+                }
                 return @{
                     Result = [string]$(netsh interface ipv4 show winsserver)
                 }
@@ -366,6 +380,11 @@
         Script DeviceManagerReceiveSideScaling {
             DependsOn = "[Script]BrownNetwork"
             GetScript = {
+                if ($SkipBrownNetworkSettings) {
+                    return @{
+                        Result = $null
+                    }
+                }
                 return @{
                     Result = [string]$(Get-NetAdapterRss -Name "BrownNetwork" | Select-Object -ExpandProperty Enabled)
                 }

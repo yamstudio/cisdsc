@@ -21,3 +21,5 @@ Configuration LCM_HttpPull {
         }
     }
 }
+
+LCM_HttpPull -ComputerName DWIN2016DSCCIT -guid $([guid]::NewGuid()) -OutputPath "C:\DSC\Config"
