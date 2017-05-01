@@ -1,8 +1,8 @@
 ﻿Configuration Template {
 
     param(
-        [Parameter(Mandatory=$true)][String[]]$ComputerName,
-        [Parameter(Mandatory=$true)][String]$guid,
+        [Parameter(Mandatory=$true)][string[]]$ComputerName,
+        [Parameter(Mandatory=$true)][string]$guid,
         [boolean]$SkipBrownNetworkSettings = $false
     )
 
@@ -41,7 +41,7 @@
             SetScript = {
                 $adapter = $(Get-WmiObject Win32_NetworkAdapter | Where-Object Name -like "*Ethernet Adapter*")
                 if (($adapter -eq $null) -or ($adapter[1] -ne $null)) {
-                    Write-Error "CRITICAL: Something is wrong with network adapters - not sure if we should proceed."                 
+                    Write-Warning "CRITICAL: Something is wrong with network adapters - not sure if we should proceed."                 
                 } else {
                     $adapter.NetConnectionID = "BrownNetwork"
                     $adapter.Put()
@@ -65,7 +65,7 @@
             }
             TestScript = {
                 if ($SkipBrownNetworkSettings) {
-                    Write-Error "CRITICAL: BrownNetwork not found - cowardly skipping configuration."
+                    Write-Warning "CRITICAL: BrownNetwork not found - cowardly skipping configuration."
                     return $true
                 }
                 $dns = $(Get-DnsClientServerAddress -InterfaceAlias "BrownNetwork" -AddressFamily IPv4 | Select-Object -ExpandProperty ServerAddresses)
@@ -117,7 +117,7 @@
             }
             TestScript = {
                 if ($SkipBrownNetworkSettings) {
-                    Write-Error "CRITICAL: BrownNetwork not found - cowardly skipping configuration."
+                    Write-Warning "CRITICAL: BrownNetwork not found - cowardly skipping configuration."
                     return $true
                 }
                 $state = [string]$(netsh interface ipv4 show winsserver) -replace '\s', ''
@@ -307,12 +307,13 @@
         File BGInfo {
             DestinationPath = "$env:SystemDrive\AdminFiles\BGInfo32-64"
             Ensure = "Present"
-            SourcePath = "C:\Adminfiles\BGInfo32-64"#"\\files\dfs\CISWindows\Software\BGinfo\BGInfo32-64"
+            SourcePath = "\\files\dfs\CISWindows\Software\BGinfo\BGInfo32-64"
             Type = "Directory"
             Checksum = "SHA-256"
             Force = $true
             MatchSource = $true
             Recurse = $true
+            Credential = $(Get-Credential -UserName "AD\adm_yqin" -Message "m")
         }
     
         # set BGInfo registry key
@@ -391,7 +392,7 @@
             }
             TestScript = {
                 if ($SkipBrownNetworkSettings) {
-                    Write-Error "CRITICAL: BrownNetwork not found - cowardly skipping configuration."
+                    Write-Warning "CRITICAL: BrownNetwork not found - cowardly skipping configuration."
                     return $true
                 }
                 if (Get-NetAdapterRss -Name "BrownNetwork" | Select-Object -ExpandProperty Enabled) {
@@ -410,4 +411,15 @@
     }   
 }
 
-Template -ComputerName DWIN2016DSCCIT -guid ([guid]::NewGuid()) -OutputPath C:\DSC\Config
+$ComputerName = "DWIN2016DSCCIT"
+$cred = @{
+    AllNodes = @(
+        @{
+            NodeName = $ComputerName
+            PSDscAllowDomainUser = $true
+            PSDscAllowPlainTextPassword = $true
+        }
+    )
+}
+
+Template -ComputerName $ComputerName -guid ([guid]::NewGuid()) -OutputPath C:\DSC\Config -ConfigurationData $cred
