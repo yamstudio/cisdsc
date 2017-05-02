@@ -1,4 +1,10 @@
 ﻿Configuration PullServerConfiguration {
+    
+    param (
+        [Parameter(Mandatory=$true)][string[]]$ComputerName,
+        [int]$PullPort = 8080,
+        [int]$CompliancePort = 8081
+    )
 
     Import-DscResource -ModuleName PSDesiredStateConfiguration, xPSDesiredStateConfiguration
 
@@ -22,7 +28,7 @@
         xDSCWebService PSDSCPullServer {
             EndPointName = "PSDSCPullServer"
             Ensure = "Present"
-            Port = 8080
+            Port = $PullPort
             CertificateThumbPrint = "AllowUnencryptedTraffic"
             PhysicalPath = "$env:SystemDrive\inetpub\wwwroot\PSDSCPullServer"
             ModulePath = "$env:ProgramFiles\WindowsPowershell\DscService\Modules"
@@ -35,7 +41,7 @@
         xDSCWebService PSDSCComplianceServer {
             EndPointName = "PSDSCComplianceServer"
             Ensure = "Present"
-            Port = 8081
+            Port = $CompliancePort
             CertificateThumbPrint = "AllowUnencryptedTraffic"
             PhysicalPath = "$env:SystemDrive\inetpub\wwwroot\PSDSCComplianceServer"
             State = "Started"
@@ -44,6 +50,3 @@
         }
     }
 }
-
-$ComputerName = "DWIN2016DSCCIT"
-PullServerConfiguration -OutputPath "C:\DSC\Config"

@@ -2,7 +2,6 @@
 
     param(
         [Parameter(Mandatory=$true)][string[]]$ComputerName,
-        [Parameter(Mandatory=$true)][string]$guid,
         [boolean]$SkipBrownNetworkSettings = $false
     )
 
@@ -307,7 +306,7 @@
         File BGInfo {
             DestinationPath = "$env:SystemDrive\AdminFiles\BGInfo32-64"
             Ensure = "Present"
-            SourcePath = "\\files\dfs\CISWindows\Software\BGinfo\BGInfo32-64"
+            SourcePath = "\\files\dfs\CISWindows\Software\DSCBackup\BGInfo32-64"
             Type = "Directory"
             Checksum = "SHA-256"
             Force = $true
@@ -422,4 +421,4 @@ $cred = @{
     )
 }
 
-Template -ComputerName $ComputerName -guid ([guid]::NewGuid()) -OutputPath C:\DSC\Config -ConfigurationData $cred
+Template -ComputerName $ComputerName -OutputPath C:\DSC\Config -ConfigurationData $cred

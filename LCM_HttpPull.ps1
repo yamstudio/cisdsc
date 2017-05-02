@@ -2,8 +2,10 @@
 Configuration LCM_HttpPull {
 
     param (
-        [Parameter(Mandatory=$true)][String[]]$ComputerName,
-        [Parameter(Mandatory=$true)][String]$guid
+        [Parameter(Mandatory=$true)][string[]]$ComputerName,
+        [Parameter(Mandatory=$true)][string]$Guid,
+        [Parameter(Mandatory=$true)][string]$PullServerName,
+        [int]$Port = 8080
     )
 
     Node $ComputerName {
@@ -12,14 +14,12 @@ Configuration LCM_HttpPull {
             AllowModuleOverwrite = $true
             ConfigurationMode = 'ApplyAndAutoCorrect'
             RefreshMode = 'Pull'
-            ConfigurationID = $guid
+            ConfigurationID = $Guid
         }
 
         ConfigurationRepositoryWeb DSCHTTP {
-            ServerURL = "http://DWIN2016DSCCIT.ad.brown.edu:8080/PSDSCPullServer.svc"
+            ServerURL = "http://$PullServerName.ad.brown.edu:$Port/PSDSCPullServer.svc"
             AllowUnsecureConnection = $true
         }
     }
 }
-
-LCM_HttpPull -ComputerName DWIN2016DSCCIT -guid $([guid]::NewGuid()) -OutputPath "C:\DSC\Config"
