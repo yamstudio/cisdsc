@@ -25,11 +25,11 @@
         Script BrownNetwork {
             GetScript = {
                 return @{
-                    Result = [string]$(Get-WmiObject Win32_NetworkAdapter | Where-Object Name -like "*Ethernet Adapter*" | Select-Object -ExpandProperty NetConnectionID)
+                    Result = [string]$(Get-WmiObject Win32_NetworkAdapter | Where-Object Name -like "*Ethernet Adapter*" | % NetConnectionID)
                 }
             }
             TestScript = {
-                if ($(Get-WmiObject Win32_NetworkAdapter | Select-Object -ExpandProperty NetConnectionID).Contains("BrownNetwork")) {
+                if ($(Get-WmiObject Win32_NetworkAdapter | % NetConnectionID).Contains("BrownNetwork")) {
                     Write-Verbose "BrownNetwork found!"
                     return $true
                 } else {

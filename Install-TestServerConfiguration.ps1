@@ -4,11 +4,12 @@
         [Parameter(Mandatory=$true)][string[]]$ComputerName,
         [string]$InputDsc = "$env:SystemDrive:\DSC\Config",
         [boolean]$Force = $false
+        [boolean]$VerboseSet = $false
     )
 
     try {
         foreach ($comp in $ComputerName) {
-            if ($(Invoke-Command -ComputerName $comp {Get-WmiObject -class win32_operatingsystem | % caption}) -notlike "Microsoft Windows Server 201*") {
+            if ($(Invoke-Command -ComputerName $comp {Get-WmiObject -Class Win32_OperatingSystem | % Caption}) -notlike "Microsoft Windows Server 201*") {
                 Write-Warning "Machine $comp does not have a supported OS version."
                 continue
             }
@@ -21,7 +22,7 @@
         return
     }
 
-    Set-DscLocalConfigurationManager -ComputerName $ComputerName -Path $InputDsc -Force $false -Verbose
+    Set-DscLocalConfigurationManager -ComputerName $ComputerName -Path $InputDsc -Force -Verbose
 
     $guid = $(Get-DscLocalConfigurationManager -CimSession $ComputerName | % ConfigurationID)
     $source = "C:\DSC\Config\$ComputerName.mof"
