@@ -2,6 +2,7 @@
 
     param(
         [Parameter(Mandatory=$true)][string[]]$ComputerName,
+        [Parameter(Mandatory)][PSCredential]$Credential,
         [boolean]$SkipBrownNetworkSettings = $false
     )
 
@@ -306,13 +307,13 @@
         File BGInfo {
             DestinationPath = "$env:SystemDrive\AdminFiles\BGInfo32-64"
             Ensure = "Present"
-            SourcePath = "\\files\dfs\CISWindows\Software\DSCBackup\BGInfo32-64"
+            #SourcePath = "\\files\dfs\CISWindows\Software\DSCBackup\BGInfo32-64"
             Type = "Directory"
             Checksum = "SHA-256"
             Force = $true
-            MatchSource = $true
-            Recurse = $true
-            Credential = $(Get-Credential -UserName "AD\adm_yqin" -Message "m")
+            #MatchSource = $true
+            #Recurse = $true
+            #Credential = $Credential
         }
     
         # set BGInfo registry key
@@ -409,16 +410,3 @@
         }
     }   
 }
-
-$ComputerName = "DWIN2016DSCCIT"
-$cred = @{
-    AllNodes = @(
-        @{
-            NodeName = $ComputerName
-            PSDscAllowDomainUser = $true
-            PSDscAllowPlainTextPassword = $true
-        }
-    )
-}
-
-Template -ComputerName $ComputerName -OutputPath C:\DSC\Config -ConfigurationData $cred

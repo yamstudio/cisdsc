@@ -4,7 +4,7 @@
         [Parameter(Mandatory=$true)][string[]]$ComputerName,
         [Parameter(Mandatory=$true)][string]$PullServerName,
         [int]$Port = 8080,
-        [string]$InputDsc = "$env:SystemDrive:\DSC\Config",
+        [string]$InputDsc = "$env:SystemDrive\DSC\",
         [switch]$Force
     )
 
@@ -12,6 +12,7 @@
     $ForceState = $Force.IsPresent
     $RestartArray = New-Object System.Collections.ArrayList
     $Guid = [guid]::NewGuid()
+    $Credential = Get-Credential -Message "Please provide a valid credential to apply DSC settings. Make sure this credential has access to \\files.ad.brown.edu." -UserName "ad\adm_yqin"
 
     # check prerequisite WMF 5
     try {
@@ -53,18 +54,37 @@
 
     # generate configuration for DSC local configuration manager
     Write-Verbose "Generating meta mof..."
-    . C:\DSC\LCM_HttpPull.ps1
-    LCM_HttpPull -ComputerName $ComputerName -Guid $Guid -PullServerName $PullServerName -Port $Port -OutputPath "C:\DSC\Config"
+    . $InputDsc\LCM_HttpPull.ps1
+    LCM_HttpPull -ComputerName $ComputerName -Guid $Guid -PullServerName $PullServerName -Port $Port -OutputPath "$InputDsc\Config"
 
 
-    Set-DscLocalConfigurationManager -ComputerName $ComputerName -Path $InputDsc -Force:$ForceState -Verbose:$VerboseState
+    Set-DscLocalConfigurationManager -ComputerName $ComputerName -Path "$InputDsc\Config" -Force:$ForceState -Verbose:$VerboseState
 
-    return
+    # generate configuration from template
+    Write-Verbose "Generating mof from Template..."
+    . $InputDsc\Template.ps1
+    $cred = @{
+        AllNodes = @(
+            @{
+                NodeName = $ComputerName
+                PsDscAllowDomainUser = $true
+                PsDscAllowPlainTextPassword = $true
+            }
+        )
+    }
+    Template -ComputerName $ComputerName -Credential $credential -OutputPath "$InputDsc\Config" -ConfigurationData $cred
 
-    $Source = "C:\DSC\Config\$ComputerName.mof"
-    $Dest = "C:\Program Files (x86)\WindowsPowershell\DscService\Configuration\$Guid.mof"
-    Copy-Item -Path $Source -Destination $Dest
-    New-DscChecksum $Dest
+    # update configuration
+    $Source = "$InputDsc\Config\$comp.mof"
+
+    $Dest = "$env:ProgramFiles\WindowsPowershell\DscService\Configuration\$Guid.mof"
+    Copy-Item -Path $Source -Destination $Dest -Verbose:$VerboseState
+    New-DscChecksum $Dest -Verbose:$VerboseState
+    
+    $Dest = "${env:ProgramFiles(x86)}\WindowsPowershell\DscService\Configuration\$Guid.mof"
+    Copy-Item -Path $Source -Destination $Dest -Verbose:$VerboseState
+    New-DscChecksum $Dest -Verbose:$VerboseState
+
     Update-DscConfiguration -ComputerName $ComputerName -Wait -Verbose:$VerboseState
 }
 
@@ -72,20 +92,39 @@ function Install-CisDscPullServer {
     param (
         [Parameter(Mandatory=$true)][string[]]$ComputerName,
         [int]$PullPort = 8080,
-        [int]$CompliancePort = 8081
+        [int]$CompliancePort = 8081,
+        [string]$InstallDest = $env:SystemDrive
     )
 
-    . C:\dsc\PullServerConfiguration.ps1
-    PullServerConfiguration -ComputerName $ComputerName -PullPort $PullPort -CompliancePort $CompliancePort -OutputPath "C:\DSC\Config"
+    $VerboseState = $VerbosePreference -ne "SilentlyContinue"
+
+    if ($(Get-DscResource | Select-Object -ExpandProperty ModuleName -Unique) -notcontains "xPSDesiredStateconfiguration", "xSystemSecurity", "xRemoteDesktopAdmin") {
+        try {
+            # try to use NuGet installation, which will very likely fail
+            Write-Verbose "Attempting to install modules with NuGet..."
+            Install-Module "xPSDesiredStateconfiguration", "xSystemSecurity", "xRemoteDesktopAdmin"
+        } catch {
+            Write-Verbose "Installation failed, using backup files instead."
+            Copy-Item -Path "\\files\dfs\CISWindows\Software\DSCBackup\Modules" -Destination "$env:ProgramFiles\WindowsPowerShell\" -Recurse -Force -Verbose:$VerboseState
+            Copy-Item -Path "\\files\dfs\CISWindows\Software\DSCBackup\Modules" -Destination "${env:ProgramFiles(x86)}\WindowsPowerShell\" -Recurse -Force -Verbose:$VerboseState
+        }
+    }
+
+    if (-not $(Test-Path "$InstallDest\DSC")) {
+        mkdir "$InstallDest\DSC"
+    }
+    Copy-Item -Path "\\files\dfs\CISWindows\Software\DSCBackup\Scripts\DSC" -Destination "$InstallDest" -Recurse -Force -Verbose:$VerboseState
+    . $InstallDest\DSC\PullServerConfiguration.ps1
+    PullServerConfiguration -ComputerName $ComputerName -PullPort $PullPort -CompliancePort $CompliancePort -OutputPath "$InstallDest\DSC\Config"
 }
 
 function Check-CisDscCompliance {
     param (
-        [string[]]$ComputerName,
-        [string]$MofFile,
-        [string]$OutputPath
+        [Parameter(Mandatory=$true)][string[]]$ComputerName,
+        [string]$MofPath = "$env:SystemDrive\DSC\Config",
+        [string]$OutputPath = "$env:SystemDrive\SystemDrive\DSC\Reports"
     )
 
 }
 
-Install-CisDscConfiguration -ComputerName "DWIN2016DSCCIT","DWIN2012DSCCIT" -PullServerName "DWIN2016DSCCIT" -Verbose -Force
+#Install-CisDscConfiguration -ComputerName "DWIN2016DSCCIT","DWIN2012DSCCIT" -PullServerName "DWIN2016DSCCIT" -Verbose -Force
