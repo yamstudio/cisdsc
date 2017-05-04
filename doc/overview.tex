@@ -1,0 +1,39 @@
+\chapter{Project Overview}
+\label{overview}
+
+  \section{Introduction}
+    CISDSC is an internal tool for the Windows Team at Brown University Computing \& Information Services.\\
+    Many thanks to Mike R, Mike D, Adam, Tony, Geoff and Robert for the help.
+
+  \section{Usage}
+    Unless you want to customize your installation, or make changes to the template, this part should be sufficient to guide you through the installation process. Suppose the DSC pull server is to be installed on DWINSERVERNAME.ad.brown.edu. Also, suppose DWINS1.ad.brown.edu and DWINS2.ad.brown.edu are the servers we want to make compliant.\\
+    First check the prerequisites.
+    \begin{enumerate}[label=(\roman*)]
+      \item Make sure you have WMF 5 on both the server and the clients. To check WMF version, run\\
+      \verb^$PSVersionTable.PSVersion | % Major^;
+      \item Make sure you are in the administrators group for each machine.
+      \item Make sure you can access \verb^\\files^.
+    \end{enumerate}
+    Now install the pull server. \textbf{You should run each script as administrator.}
+    \begin{enumerate}[label=\arabic*.]
+      \item Put CisDsc.ps1 in a local drive. You can find it at\\
+      \verb^\\files\dfs\CISWindows\Software\DSCBackup\Scripts\DSC^.\\
+      In this example, we put it under C drive.
+      \item Open PowerShell as administrator and run\\
+      \verb^. C:\CisDsc.ps1^;\\
+      \verb^Install-CisDscPullServer -ComputerName DWINSERVERNAME^;\\
+      By default it is installed at C:\textbackslash DSC.
+      \item Check that the pull server is up and running by visiting \url{http://DWINSERVERNAME.ad.brown.edu:8080/psdscpullserver.svc}.
+      \item To check if DWINS1 and DWINS2 are compliant, run\\
+      \verb^Check-CisDscCompliance -ComputerName DWINS1, DWINS2^;\\
+      The first time your run this command, it should prompt you to build the localhost.mof file first. Give it a valid credential and proceed.
+      \item To see reports of compliance state, go to \verb^C:\DSC\Reports^. There should be an overall report as well as detailed reports for each server.
+      \item To force DWINS1 to be compliant, run\\
+      \verb^Install-PsDscConfiguration -ComputerName DWINS1^\\
+      \verb^    -PullServerName -DWINSERVERNAME^;
+    \end{enumerate}
+    Turn on \verb|-Verbose| flag for debugging purposes.
+
+  \section{Support}
+    Tony is in charge of the standard build doc, which the template is based on. You can find it at the SharePoint site. For more information, email Tony: anthony\_jaworsky [at] brown.edu.\\
+    For help with installing and updating DSC pull server, email Yujun: yujun\_qin [at] brown.edu. 
