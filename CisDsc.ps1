@@ -31,6 +31,7 @@
                 Invoke-Command -ComputerName $comp {New-SmbShare -Name "dsctemp$args" -Path "$env:SystemDrive\dsctemp" -FullAccess "AD\adm_yqin"} -ArgumentList $rand
                 Copy-Item -Path "\\files\dfs\CISWindows\Software\DSCBackup\WMF5-x64.msu" -Destination "\\$comp\dsctemp$rand\"
                 Invoke-Command -ComputerName $comp {Get-SmbShare -Name "dsctemp*" | Remove-SmbShare -Confirm:$false}
+                # TODO: this line of code is known to be buggy; cannot invoke wusa remotely
                 Invoke-Command -ComputerName $comp {wusa "$env:SystemDrive\dsctemp\WMF5-x64.msu" /quiet /norestart}
                 $RestartArray += $comp
             } else {
@@ -63,6 +64,7 @@
     # generate configuration from template
     Write-Verbose "Generating mof from Template..."
     . $InputDsc\Template.ps1
+    # TODO: this should have been configured to encrypt user credential: https://blogs.msdn.microsoft.com/powershell/2014/01/31/want-to-secure-credentials-in-windows-powershell-desired-state-configuration/
     $cred = @{
         AllNodes = @(
             @{
@@ -99,16 +101,22 @@ function Install-CisDscPullServer {
     $VerboseState = $VerbosePreference -ne "SilentlyContinue"
 
     if ($(Get-DscResource | Select-Object -ExpandProperty ModuleName -Unique) -notcontains "xPSDesiredStateconfiguration", "xSystemSecurity", "xRemoteDesktopAdmin") {
-        try {
-            # try to use NuGet installation, which will very likely fail
-            Write-Verbose "Attempting to install modules with NuGet..."
-            Install-Module "xPSDesiredStateconfiguration", "xSystemSecurity", "xRemoteDesktopAdmin"
-        } catch {
-            Write-Verbose "Installation failed, using backup files instead."
-            Copy-Item -Path "\\files\dfs\CISWindows\Software\DSCBackup\Modules" -Destination "$env:ProgramFiles\WindowsPowerShell\" -Recurse -Force -Verbose:$VerboseState
-            Copy-Item -Path "\\files\dfs\CISWindows\Software\DSCBackup\Modules" -Destination "${env:ProgramFiles(x86)}\WindowsPowerShell\" -Recurse -Force -Verbose:$VerboseState
-        }
+        Write-Verbose "Using backup files..."
+        Copy-Item -Path "\\files\dfs\CISWindows\Software\DSCBackup\Modules" -Destination "$env:ProgramFiles\WindowsPowerShell\" -Recurse -Force -Verbose:$VerboseState
+        Copy-Item -Path "\\files\dfs\CISWindows\Software\DSCBackup\Modules" -Destination "${env:ProgramFiles(x86)}\WindowsPowerShell\" -Recurse -Force -Verbose:$VerboseState
     }
+
+    if (-not $(Test-Path "$env:ProgramFiles\WindowsPowerShell\DscService")) {
+        mkdir "$env:ProgramFiles\WindowsPowerShell\DscService"
+    }
+    Copy-Item -Path "$env:ProgramFiles\WindowsPowerShell\Modules" -Destination "$env:ProgramFiles\WindowsPowerShell\DscService" -Recurse -Force -Verbose:$VerboseState 
+    New-DscChecksum "$env:ProgramFiles\WindowsPowerShell\DscService\Modules" -Force
+
+    if (-not $(Test-Path "${env:ProgramFiles(x86)}\WindowsPowerShell\DscService")) {
+        mkdir "${env:ProgramFiles(x86)}\WindowsPowerShell\DscService"
+    }
+    Copy-Item -Path "${env:ProgramFiles(x86)}\WindowsPowerShell\Modules" -Destination "${env:ProgramFiles(x86)}\WindowsPowerShell\DscService" -Recurse -Force -Verbose:$VerboseState
+    New-DscChecksum "${env:ProgramFiles(x86)}\WindowsPowerShell\DscService\Modules" -Force
 
     if (-not $(Test-Path "$InstallDest\DSC")) {
         mkdir "$InstallDest\DSC"
@@ -116,15 +124,50 @@ function Install-CisDscPullServer {
     Copy-Item -Path "\\files\dfs\CISWindows\Software\DSCBackup\Scripts\DSC" -Destination "$InstallDest" -Recurse -Force -Verbose:$VerboseState
     . $InstallDest\DSC\PullServerConfiguration.ps1
     PullServerConfiguration -ComputerName $ComputerName -PullPort $PullPort -CompliancePort $CompliancePort -OutputPath "$InstallDest\DSC\Config"
+
+    Start-DscConfiguration -CimSession $ComputerName -Path "$InstallDest\DSC\Config" -Wait -Force -Verbose:$VerboseState
 }
 
 function Check-CisDscCompliance {
     param (
         [Parameter(Mandatory=$true)][string[]]$ComputerName,
-        [string]$MofPath = "$env:SystemDrive\DSC\Config",
-        [string]$OutputPath = "$env:SystemDrive\SystemDrive\DSC\Reports"
+        [boolean]$UseDefault = $true,
+        [string]$MofFile = "$env:SystemDrive\DSC\Config",
+        [string]$OutputPath = "$env:SystemDrive\DSC\Reports"
     )
 
-}
+    if (-not $(Test-Path $OutputPath)) {
+        mkdir $OutputPath
+    }
 
-#Install-CisDscConfiguration -ComputerName "DWIN2016DSCCIT","DWIN2012DSCCIT" -PullServerName "DWIN2016DSCCIT" -Verbose -Force
+    if ($UseDefault) {
+        $MofFile = "$env:SystemDrive\DSC\Config\localhost.mof"
+        if (-not $(Test-Path $MofFile)) {
+            Write-Warning "Template MOF not found! You should generate one first."
+            $Credential = Get-Credential -Message "Please provide a valid credential to apply DSC settings. Make sure this credential has access to \\files.ad.brown.edu." -UserName "ad\adm_yqin"
+            
+            . $env:SystemDrive\DSC\Template.ps1
+            # TODO: this should have been configured to encrypt user credential: https://blogs.msdn.microsoft.com/powershell/2014/01/31/want-to-secure-credentials-in-windows-powershell-desired-state-configuration/
+            $cred = @{
+                AllNodes = @(
+                    @{
+                        NodeName = $ComputerName
+                        PsDscAllowDomainUser = $true
+                        PsDscAllowPlainTextPassword = $true
+                    }
+                )
+            }
+            Template -ComputerName "localhost" -Credential $Credential -OutputPath "$env:SystemDrive\DSC\Config" -ConfigurationData $cred
+        }
+    }
+
+    $oldpath = pwd
+    cd $OutputPath
+    Start-DSCEAscan -MofFile $MofFile -ComputerName $ComputerName -OutputPath $OutputPath
+    Get-DSCEAreport -OutPath $OutputPath -Overall
+    foreach ($comp in $ComputerName) {
+        Get-DSCEAreport -OutPath $OutputPath -ComputerName $comp
+    }
+    .\OverallComplianceReport.html
+    cd $oldpath
+}

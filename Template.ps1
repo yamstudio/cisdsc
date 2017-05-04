@@ -224,6 +224,7 @@
 
         # PERFORMANCE OPTIONS
         # set Data Execution Prevention
+        # TODO: this script does not seem to work on Server 2012 machines
         Script DEP {
             GetScript = {
                 return @{
@@ -304,6 +305,7 @@
 
         # BGINFO
         # download BGInfo
+        # TODO: fix credential issue
         File BGInfo {
             DestinationPath = "$env:SystemDrive\AdminFiles\BGInfo32-64"
             Ensure = "Present"
