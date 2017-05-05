@@ -2,13 +2,100 @@
 \label{overview}
 
   \section{CisDsc.ps1}
-    Hi
+    This file is essentially a wrapper for all the functions in the other files. As long as you have this file, you should be able to fetch the other files and set up DSC.
+    \subsection{Install-CisDscPullServer}
+      Paramters:
+      \begin{itemize}
+        \item \verb^ComputerName^: Mandatory, name of the computer you want to install server on;
+        \item \verb^PullPort^: Port for pull server, 8080 be default;
+        \item \verb^CompliancePort^: Port for compliance server, 8081 by default;
+        \item \verb^InstallDest^: Installation location, \verb^C:\^ by default.
+      \end{itemize}
+      This command copies DSC modules from \verb^\\files^ and installs DSC pull server.
+    \subsection{Install-CisDscConfiguration}
+      Parameters:
+      \begin{itemize}
+        \item \verb^ComputerName[]^: Mandatory, names of the servers you want to make compliant;
+        \item \verb^PullServerName^: Mandatory, name of the pull server;
+        \item \verb^Port^: Pull server port, 8080 by default;
+        \item \verb^InputDSC^: The directory that contains Template.ps1, \verb^C:\DSC^ by default;
+        \item \verb^Force^: Flag to force DSC configuration.
+      \end{itemize}
+      This command enforces template configuration on clients. \textbf{It should be run on the pull server specified by }\verb^PullServerName^\textbf{.}
+    \subsection{Check-CisDscCompliance}
+      Parameters:
+      \begin{itemize}
+        \item \verb^ComputerName[]^: Mandatory, names of the servers you want to check compliance state on;
+        \item \verb^UseDefault^: Whether default setting (i.e. installation location) is applied on pull server, true by default;
+        \item \verb^MofFile^: The ``golden image'' MOF file, default not specified; 
+        \item \verb^OutputPath^: Path for outputting compliance reports,
+        \verb^C:\DSC\Reports^ by default.
+      \end{itemize}
+      This command checks the compliance state on clients, based on the MOF it is given. By defualt it uses the Server 2016 template MOF. It generates an overview report and machine-specific detailed reports.
 
   \section{Template.ps1}
-    This is the golden image.
+    This is the Server 2016 template based on the standard build doc. It comprises the following modules.
+    \subsection{[File]AdminFiles}
+      \verb^C:\AdminFiles^ should be present.
+    \subsection{[Script]BrownNetwork}
+      There should be a network interface called BrownNetwork. Use Network and Sharing Center to check this.
+    \subsection{[Script]DNSServer}
+      DNS server addresses should be set to 10.4.21.\{2, 3, 4, 5\}, and 10.1.1.10. Use Network and Sharing Center to check this.
+    \subsection{[Registry]DNSSuffix}
+      DNS suffixes should be in this order: ad.brown.edu, brown.edu, qad.brown.edu, services.brown.edu. Use Network and Sharing Center to check this.
+    \subsection{[Script]WINSServer}
+      WINS address should be 10.4.21.5. Use Network and Sharing Center to check this.
+    \subsection{[Script]LMHOSTS}
+      LMHOSTS should be turned off. Use Network and Sharing Center to check this.
+    \subsection{[Registry]IPv6}
+      IPv6 should be disabled.
+    \subsection{[Service]PrintSpooler}
+      Print Spooler should be forbidden from starting up. Use Computer Management - Services to check this.
+    \subsection{[Registry]AdminESC}
+      IE Enhanced Security should be disabled for administrators. Use Server Manager - Local Server to check this.
+    \subsection{[Registry]UserESC}
+      IE Enhanced Security should be enabled for users. Use Server Manager - Local Server to check this.
+    \subsection{[xUAC]UAC}
+      It depends on DSC resource xSystemSecurity. User Account Control should be set to Never Notify. Use Control Panel - User Accounts -Change User Account Control Settings to check this.
+    \subsection{[Script]DEP}
+      Data Execution Prevention should be set to ``Turn on DEP for essential Windows programs and services only''. Use Control Panel - System and Security - System - Advanced System Settings - Advanced - Performance - Data Execution Prevention to check this.
+    \subsection{[Registry]AdjustForBestPerformance}
+      Visual Effects should be set to ``Adjust for Best Performance''. Use Control Panel - System and Security - System - Advanced System Settings - Advanced - Performance - Visual Effects to check this.
+    \subsection{[xRemoteDesktopAdmin]RemoteDesktop}
+      It depends on DSC resource xRemoteDektopAdmin. Remote access should be enabled.. Use Control Panel - System and Security - Allow Remote Access to check this.
+    \subsection{[Registry]ServerManager}
+      Registry key should be set to disable Server Manager at logon.
+    \subsection{[Script]ServerManagerTask}
+      Server Manager should be disabled from auto startup. Use Task Scheduler - Microsoft - Windows - Server Manager to check this.
+    \subsection{[File]BGInfo}
+    \subsection{[Registry]BGInfoKey}
+    \subsection{[WindowsFeature]SMB1}
+    \subsection{[Registry]KB3125869\_Key1}
+    \subsection{[Registry]KB3125869\_Key2}
+    \subsection{[Script]NetshReceiveSideScaling}
+    \subsection{[Script]DeviceManagerReceiveSideScaling}
 
   \section{PullServerConfiguration.ps1}
-    This is the 
+    This is the configuration file for pull server installation. You normally need not change its content. However, if you want to enforce HTTPS, you should modify a few properties.\\
+    Under \verb^[xDSCWebService]PSDSCPullServer^, set
+    \begin{itemize}
+      \item \verb^CertificateThumbPrint = Certificate thumbprint for IIS Server^
+      \item \verb^UseSecurityBestPractices = $true^.
+    \end{itemize}
+    Under \verb^[xDSCWebService]PSDSCComplianceServer^, do the same thing with
+    \begin{itemize}
+      \item \verb^CertificateThumbPrint = Certificate thumbprint for IIS Server^
+      \item \verb^UseSecurityBestPractices = $true^.
+    \end{itemize}
+    After modification, re-install the pull server.
 
   \section{LCM\_HttpPull.ps1}
-    Hi
+    This is the configuration file for DSC Local Configuration Manager. If a client wants to pull DSC Mof files, it has to know where to find them. This file serves that purpose.\\
+    To enforce HTTPS, under \verb^[ConfigurationRepositoryWeb]DSCHTTP^, set
+    \begin{itemize}
+      \item \verb^ServerURL =^\\
+      \verb^"https://$PullServerName.ad.brown.edu:$Port/PSDSCPullServer.svc"^
+      \item \verb^CertificateID = Certificate thumbprint for IIS Server^
+      \item \verb^AllowUnsecureConnection = $false^.
+    \end{itemize}
+    And then use \verb^Install-CisDscConfiguration^ to re-install settings for the clients.

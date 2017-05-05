@@ -92,7 +92,7 @@
 
 function Install-CisDscPullServer {
     param (
-        [Parameter(Mandatory=$true)][string[]]$ComputerName,
+        [Parameter(Mandatory=$true)][string]$ComputerName,
         [int]$PullPort = 8080,
         [int]$CompliancePort = 8081,
         [string]$InstallDest = $env:SystemDrive
@@ -132,7 +132,7 @@ function Check-CisDscCompliance {
     param (
         [Parameter(Mandatory=$true)][string[]]$ComputerName,
         [boolean]$UseDefault = $true,
-        [string]$MofFile = "$env:SystemDrive\DSC\Config",
+        [string]$MofFile
         [string]$OutputPath = "$env:SystemDrive\DSC\Reports"
     )
 
