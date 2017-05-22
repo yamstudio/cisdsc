@@ -56,24 +56,31 @@
     \subsection{[Registry]UserESC}
       IE Enhanced Security should be enabled for users. Use Server Manager - Local Server to check this.
     \subsection{[xUAC]UAC}
-      It depends on DSC resource xSystemSecurity. User Account Control should be set to Never Notify. Use Control Panel - User Accounts -Change User Account Control Settings to check this.
+      It depends on DSC resource xSystemSecurity. User Account Control should be set to Never Notify. Use Control Panel - User Accounts - Change User Account Control Settings to check this.
     \subsection{[Script]DEP}
       Data Execution Prevention should be set to ``Turn on DEP for essential Windows programs and services only''. Use Control Panel - System and Security - System - Advanced System Settings - Advanced - Performance - Data Execution Prevention to check this.
     \subsection{[Registry]AdjustForBestPerformance}
       Visual Effects should be set to ``Adjust for Best Performance''. Use Control Panel - System and Security - System - Advanced System Settings - Advanced - Performance - Visual Effects to check this.
     \subsection{[xRemoteDesktopAdmin]RemoteDesktop}
-      It depends on DSC resource xRemoteDektopAdmin. Remote access should be enabled.. Use Control Panel - System and Security - Allow Remote Access to check this.
+      It depends on DSC resource xRemoteDektopAdmin. Remote access should be enabled. Use Control Panel - System and Security - Allow Remote Access to check this.
     \subsection{[Registry]ServerManager}
       Registry key should be set to disable Server Manager at logon.
     \subsection{[Script]ServerManagerTask}
       Server Manager should be disabled from auto startup. Use Task Scheduler - Microsoft - Windows - Server Manager to check this.
     \subsection{[File]BGInfo}
+      BGInfo should be present at \verb^C:\AdminFiles\BGInfo32-64^. This module is not fully functional at this stage. See Issues \& TODOs for more information.
     \subsection{[Registry]BGInfoKey}
+      Registry key for BGInfo should be set, such that it can start correctly.
     \subsection{[WindowsFeature]SMB1}
+      SMB1 should be disabled.
     \subsection{[Registry]KB3125869\_Key1}
+      KB3125869 should be installed. For more information about this update, please refer to Microsoft website.
     \subsection{[Registry]KB3125869\_Key2}
+      Ditto.
     \subsection{[Script]NetshReceiveSideScaling}
+      Receive-Side Scaling should be enabled in netsh. Use \verb^netsh int tcp show global^ to check this.
     \subsection{[Script]DeviceManagerReceiveSideScaling}
+      Receive-Side Scaling should be disabled in Device Manager.
 
   \section{PullServerConfiguration.ps1}
     This is the configuration file for pull server installation. You normally need not change its content. However, if you want to enforce HTTPS, you should modify a few properties.\\
